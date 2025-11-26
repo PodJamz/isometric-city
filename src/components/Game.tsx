@@ -1897,7 +1897,6 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     };
     const buildingQueue: BuildingDraw[] = [];
     const waterQueue: BuildingDraw[] = [];
-    const waterBaseTileQueue: BuildingDraw[] = [];
     const beachQueue: BuildingDraw[] = [];
     const overlayQueue: OverlayDraw[] = [];
     
@@ -1945,18 +1944,14 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
           y >= Math.min(dragStartTile.y, dragEndTile.y) &&
           y <= Math.max(dragStartTile.y, dragEndTile.y);
         
-        // Draw base tile for non-water tiles (water tiles will be drawn after water sprites)
-        if (tile.building.type !== 'water') {
-          drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect), zoom);
-        }
+        // Draw base tile for all tiles (including water)
+        drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect), zoom);
         
-        // Separate water tiles into their own queue (drawn first, below everything)
+        // Separate water tiles into their own queue (drawn after base tiles, below other buildings)
         if (tile.building.type === 'water') {
           const size = getBuildingSize(tile.building.type);
           const depth = x + y + size.width + size.height - 2;
           waterQueue.push({ screenX, screenY, tile, depth });
-          // Also queue the base tile to be drawn after the water sprite
-          waterBaseTileQueue.push({ screenX, screenY, tile, depth });
         }
         // Check for beach tiles (grass/empty tiles adjacent to water)
         else if ((tile.building.type === 'grass' || tile.building.type === 'empty') &&
@@ -1984,25 +1979,11 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
       }
     }
     
-    // Draw water sprites first (below everything)
+    // Draw water sprites (after base tiles, below other buildings)
     waterQueue
       .sort((a, b) => a.depth - b.depth)
       .forEach(({ tile, screenX, screenY }) => {
         drawBuilding(ctx, screenX, screenY, tile);
-      });
-    
-    // Draw base tiles for water tiles on top of water sprites
-    waterBaseTileQueue
-      .sort((a, b) => a.depth - b.depth)
-      .forEach(({ tile, screenX, screenY }) => {
-        const isHovered = hoveredTile?.x === tile.x && hoveredTile?.y === tile.y;
-        const isSelected = selectedTile?.x === tile.x && selectedTile?.y === tile.y;
-        const isInDragRect = showsDragGrid && dragStartTile && dragEndTile && 
-          tile.x >= Math.min(dragStartTile.x, dragEndTile.x) &&
-          tile.x <= Math.max(dragStartTile.x, dragEndTile.x) &&
-          tile.y >= Math.min(dragStartTile.y, dragEndTile.y) &&
-          tile.y <= Math.max(dragStartTile.y, dragEndTile.y);
-        drawIsometricTile(ctx, screenX, screenY, tile, !!(isHovered || isSelected || isInDragRect), zoom);
       });
     
     // Draw beach tiles (below buildings but above water)
@@ -2292,32 +2273,21 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     ) => {
       const swWidth = beachWidth;
       
-      // Extend edges slightly beyond corners to ensure proper connection
-      const extendAmount = swWidth * 0.3;
-      const edgeDx = (endX - startX) / Math.hypot(endX - startX, endY - startY);
-      const edgeDy = (endY - startY) / Math.hypot(endX - startX, endY - startY);
-      
-      // Extend start and end points outward along the edge
-      const extendedStartX = startX - edgeDx * extendAmount;
-      const extendedStartY = startY - edgeDy * extendAmount;
-      const extendedEndX = endX + edgeDx * extendAmount;
-      const extendedEndY = endY + edgeDy * extendAmount;
-      
       // Draw curb (darker line at outer edge)
       ctx.strokeStyle = curbColor;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(extendedStartX, extendedStartY);
-      ctx.lineTo(extendedEndX, extendedEndY);
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
       ctx.stroke();
       
       // Draw beach fill
       ctx.fillStyle = beachColor;
       ctx.beginPath();
-      ctx.moveTo(extendedStartX, extendedStartY);
-      ctx.lineTo(extendedEndX, extendedEndY);
-      ctx.lineTo(extendedEndX + inwardDx * swWidth, extendedEndY + inwardDy * swWidth);
-      ctx.lineTo(extendedStartX + inwardDx * swWidth, extendedStartY + inwardDy * swWidth);
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.lineTo(endX + inwardDx * swWidth, endY + inwardDy * swWidth);
+      ctx.lineTo(startX + inwardDx * swWidth, startY + inwardDy * swWidth);
       ctx.closePath();
       ctx.fill();
     };
@@ -2475,32 +2445,21 @@ function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile }: {
     ) => {
       const swWidth = sidewalkWidth;
       
-      // Extend edges slightly beyond corners to ensure proper connection
-      const extendAmount = swWidth * 0.3;
-      const edgeDx = (endX - startX) / Math.hypot(endX - startX, endY - startY);
-      const edgeDy = (endY - startY) / Math.hypot(endX - startX, endY - startY);
-      
-      // Extend start and end points outward along the edge
-      const extendedStartX = startX - edgeDx * extendAmount;
-      const extendedStartY = startY - edgeDy * extendAmount;
-      const extendedEndX = endX + edgeDx * extendAmount;
-      const extendedEndY = endY + edgeDy * extendAmount;
-      
       // Draw curb (darker line at outer edge)
       ctx.strokeStyle = curbColor;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(extendedStartX, extendedStartY);
-      ctx.lineTo(extendedEndX, extendedEndY);
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
       ctx.stroke();
       
       // Draw sidewalk fill
       ctx.fillStyle = sidewalkColor;
       ctx.beginPath();
-      ctx.moveTo(extendedStartX, extendedStartY);
-      ctx.lineTo(extendedEndX, extendedEndY);
-      ctx.lineTo(extendedEndX + inwardDx * swWidth, extendedEndY + inwardDy * swWidth);
-      ctx.lineTo(extendedStartX + inwardDx * swWidth, extendedStartY + inwardDy * swWidth);
+      ctx.moveTo(startX, startY);
+      ctx.lineTo(endX, endY);
+      ctx.lineTo(endX + inwardDx * swWidth, endY + inwardDy * swWidth);
+      ctx.lineTo(startX + inwardDx * swWidth, startY + inwardDy * swWidth);
       ctx.closePath();
       ctx.fill();
     };
