@@ -1085,6 +1085,8 @@ const BUILDING_IMAGES: Record<string, string> = {
   tree: '/assets/buildings/trees.png',
   house_medium: '/assets/buildings/house_medium.png',
   mansion: '/assets/buildings/mansion.png',
+  shop_medium: '/assets/buildings/shop_medium.png',
+  warehouse: '/assets/buildings/warehouse.png',
 };
 
 // Canvas-based Isometric Grid - HIGH PERFORMANCE
