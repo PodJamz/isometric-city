@@ -32,12 +32,18 @@ import { gridToScreen } from './utils';
 const ISO_NS = { x: 0.894427, y: 0.447214 };
 const ISO_EW = { x: -0.894427, y: 0.447214 };
 
-/** Get curve endpoints and control point for a curve track type */
+/** Get curve endpoints, control point, and perpendicular directions for a curve track type */
 function getCurveGeometry(
   trackType: TrackType,
   screenX: number,
   screenY: number
-): { from: { x: number; y: number }; to: { x: number; y: number }; control: { x: number; y: number }; fromAngle: number; toAngle: number } | null {
+): { 
+  from: { x: number; y: number }; 
+  to: { x: number; y: number }; 
+  control: { x: number; y: number }; 
+  fromPerp: { x: number; y: number };
+  toPerp: { x: number; y: number };
+} | null {
   const w = TILE_WIDTH;
   const h = TILE_HEIGHT;
   const cx = screenX + w / 2;
@@ -50,61 +56,82 @@ function getCurveGeometry(
   const westEdge = { x: screenX + w * 0.25, y: screenY + h * 0.75 };
   const center = { x: cx, y: cy };
 
-  // Angles for each direction (matching DIRECTION_META)
-  const angles = {
-    north: Math.atan2(-TILE_HEIGHT / 2, -TILE_WIDTH / 2),
-    east: Math.atan2(-TILE_HEIGHT / 2, TILE_WIDTH / 2),
-    south: Math.atan2(TILE_HEIGHT / 2, TILE_WIDTH / 2),
-    west: Math.atan2(TILE_HEIGHT / 2, -TILE_WIDTH / 2),
-  };
+  // Perpendicular directions at each edge (matching rail drawing code)
+  // These must match the perpendiculars used in railSystem.ts for track drawing
+  const NEG_ISO_EW = { x: -ISO_EW.x, y: -ISO_EW.y };
+  const NEG_ISO_NS = { x: -ISO_NS.x, y: -ISO_NS.y };
 
+  // The perpendiculars here match those used in drawDoubleCurvedBallast/Rails
   switch (trackType) {
     case 'curve_ne':
-      return { from: northEdge, to: eastEdge, control: center, fromAngle: angles.south, toAngle: angles.west };
+      // from=north, to=east; perps from rail code: ISO_EW, ISO_NS
+      return { from: northEdge, to: eastEdge, control: center, fromPerp: ISO_EW, toPerp: ISO_NS };
     case 'curve_nw':
-      return { from: northEdge, to: westEdge, control: center, fromAngle: angles.south, toAngle: angles.east };
+      // from=north, to=west; perps from rail code: NEG_ISO_EW, ISO_NS
+      return { from: northEdge, to: westEdge, control: center, fromPerp: NEG_ISO_EW, toPerp: ISO_NS };
     case 'curve_se':
-      return { from: southEdge, to: eastEdge, control: center, fromAngle: angles.north, toAngle: angles.west };
+      // from=south, to=east; perps from rail code: ISO_EW, NEG_ISO_NS  
+      return { from: southEdge, to: eastEdge, control: center, fromPerp: ISO_EW, toPerp: NEG_ISO_NS };
     case 'curve_sw':
-      return { from: southEdge, to: westEdge, control: center, fromAngle: angles.north, toAngle: angles.east };
+      // from=south, to=west; perps from rail code: NEG_ISO_EW, NEG_ISO_NS
+      return { from: southEdge, to: westEdge, control: center, fromPerp: NEG_ISO_EW, toPerp: NEG_ISO_NS };
     default:
       return null;
   }
 }
 
-/** Determine which way a train enters and exits a curve based on direction */
+/** 
+ * Determine curve traversal info based on the exit direction (where train is heading).
+ * The carriage.direction is the EXIT direction - where the train will leave the tile.
+ * We compute the entry direction based on which edges the curve connects.
+ */
 function getCurveTraversalDirection(
   trackType: TrackType,
-  enterDirection: CarDirection
-): { entryT: number; exitT: number } | null {
-  // Map: which edge the train enters from based on its travel direction
-  // north direction = train came from south edge, heading to north edge
-  // east direction = train came from west edge, heading to east edge
-  // etc.
+  exitDirection: CarDirection
+): { entryT: number; exitT: number; entryDirection: CarDirection } | null {
+  // exitDirection = where the train is HEADING (the direction stored in carriage.direction)
+  // entryDirection = where the train CAME FROM (the opposite edge of the curve)
   
   switch (trackType) {
     case 'curve_ne':
       // Curve connects north and east edges
-      if (enterDirection === 'north') return { entryT: 1, exitT: 0 }; // Enter from east, exit to north
-      if (enterDirection === 'east') return { entryT: 0, exitT: 1 }; // Enter from north, exit to east
+      // If heading north, entered from east; if heading east, entered from north
+      if (exitDirection === 'north') return { entryT: 1, exitT: 0, entryDirection: 'west' }; // Came from east edge (was heading west before turn)
+      if (exitDirection === 'east') return { entryT: 0, exitT: 1, entryDirection: 'south' }; // Came from north edge (was heading south before turn)
       break;
     case 'curve_nw':
       // Curve connects north and west edges
-      if (enterDirection === 'north') return { entryT: 1, exitT: 0 }; // Enter from west, exit to north
-      if (enterDirection === 'west') return { entryT: 0, exitT: 1 }; // Enter from north, exit to west
+      if (exitDirection === 'north') return { entryT: 1, exitT: 0, entryDirection: 'east' }; // Came from west edge (was heading east before turn)
+      if (exitDirection === 'west') return { entryT: 0, exitT: 1, entryDirection: 'south' }; // Came from north edge (was heading south before turn)
       break;
     case 'curve_se':
       // Curve connects south and east edges
-      if (enterDirection === 'south') return { entryT: 1, exitT: 0 }; // Enter from east, exit to south
-      if (enterDirection === 'east') return { entryT: 0, exitT: 1 }; // Enter from south, exit to east
+      if (exitDirection === 'south') return { entryT: 1, exitT: 0, entryDirection: 'west' }; // Came from east edge (was heading west before turn)
+      if (exitDirection === 'east') return { entryT: 0, exitT: 1, entryDirection: 'north' }; // Came from south edge (was heading north before turn)
       break;
     case 'curve_sw':
       // Curve connects south and west edges
-      if (enterDirection === 'south') return { entryT: 1, exitT: 0 }; // Enter from west, exit to south
-      if (enterDirection === 'west') return { entryT: 0, exitT: 1 }; // Enter from south, exit to west
+      if (exitDirection === 'south') return { entryT: 1, exitT: 0, entryDirection: 'east' }; // Came from west edge (was heading east before turn)
+      if (exitDirection === 'west') return { entryT: 0, exitT: 1, entryDirection: 'north' }; // Came from south edge (was heading north before turn)
       break;
   }
   return null;
+}
+
+/** 
+ * Get a consistent track side for curves based on the entry direction.
+ * This ensures trains stay on the same physical track throughout the curve.
+ * 
+ * The entry direction determines which track the train was on BEFORE entering the curve,
+ * and it should stay on that same track through and after the curve.
+ */
+function getCurveTrackSide(
+  entryDirection: CarDirection
+): 0 | 1 {
+  // Use the same logic as straight tracks: the track side is determined by which
+  // direction the train was traveling BEFORE it entered the curve.
+  // This way, the train stays on the same physical track throughout.
+  return (entryDirection === 'north' || entryDirection === 'east') ? 0 : 1;
 }
 
 /** Calculate position and angle on a quadratic bezier curve */
@@ -112,7 +139,8 @@ function bezierPositionAndAngle(
   from: { x: number; y: number },
   control: { x: number; y: number },
   to: { x: number; y: number },
-  t: number
+  t: number,
+  reverseDirection: boolean = false
 ): { x: number; y: number; angle: number } {
   const u = 1 - t;
   
@@ -121,8 +149,14 @@ function bezierPositionAndAngle(
   const y = u * u * from.y + 2 * u * t * control.y + t * t * to.y;
   
   // Derivative (tangent direction) at t
-  const dx = 2 * u * (control.x - from.x) + 2 * t * (to.x - control.x);
-  const dy = 2 * u * (control.y - from.y) + 2 * t * (to.y - control.y);
+  let dx = 2 * u * (control.x - from.x) + 2 * t * (to.x - control.x);
+  let dy = 2 * u * (control.y - from.y) + 2 * t * (to.y - control.y);
+  
+  // If traversing the curve in reverse (from high t to low t), flip the tangent
+  if (reverseDirection) {
+    dx = -dx;
+    dy = -dy;
+  }
   
   // Angle from tangent
   const angle = Math.atan2(dy, dx);
@@ -135,22 +169,22 @@ function bezierPositionAndAngle(
 // ============================================================================
 
 /** Minimum rail tiles required to spawn trains */
-export const MIN_RAIL_TILES_FOR_TRAINS = 10;
+export const MIN_RAIL_TILES_FOR_TRAINS = 6;
 
 /** Maximum trains per rail network size */
-export const TRAINS_PER_RAIL_TILES = 12; // 1 train per 12 rail tiles
+export const TRAINS_PER_RAIL_TILES = 6; // 1 train per 6 rail tiles
 
 /** Maximum trains in the city */
-export const MAX_TRAINS = 20;
+export const MAX_TRAINS = 35;
 
 /** Train spawn interval in seconds */
-export const TRAIN_SPAWN_INTERVAL = 3.0;
+export const TRAIN_SPAWN_INTERVAL = 1.5;
 
 /** Station stop duration in seconds */
 export const STATION_STOP_DURATION = 2.0;
 
 /** Train maximum age in seconds */
-export const TRAIN_MAX_AGE = 60;
+export const TRAIN_MAX_AGE = 120;
 
 /** Carriage count for train types */
 export const TRAIN_CARRIAGE_COUNTS = {
@@ -753,26 +787,47 @@ function drawCarriage(
   
   if (curveGeometry && curveTraversal) {
     // We're on a curve - interpolate position and angle along the bezier
-    const { from, to, control } = curveGeometry;
-    const { entryT, exitT } = curveTraversal;
+    const { from, to, control, fromPerp, toPerp } = curveGeometry;
+    const { entryT, exitT, entryDirection } = curveTraversal;
+    
+    // Use consistent track side based on entry direction for the entire curve
+    const curveTrackSide = getCurveTrackSide(entryDirection);
     
     // Map progress (0-1) to curve parameter t
-    // entryT tells us where we start, exitT where we end
     const t = entryT + (exitT - entryT) * carriage.progress;
     
-    // Get perpendicular offset for the track separation
-    // For curves, we need to offset perpendicular to the curve tangent
-    const bezierResult = bezierPositionAndAngle(from, control, to, t);
+    // Check if we're traversing the curve in reverse (from high t to low t)
+    const isReverse = exitT < entryT;
     
-    // Calculate perpendicular to the tangent at this point
-    const tangentAngle = bezierResult.angle;
-    const perpAngle = tangentAngle + Math.PI / 2;
-    const perpX = Math.cos(perpAngle);
-    const perpY = Math.sin(perpAngle);
+    // Get position and angle on the curve
+    const bezierResult = bezierPositionAndAngle(from, control, to, t, isReverse);
+    
+    // Interpolate perpendicular direction along the curve
+    // For forward traversal: go from fromPerp to toPerp as t goes 0→1
+    // For reverse traversal: go from toPerp to fromPerp as t goes 1→0
+    let interpPerpX: number, interpPerpY: number;
+    if (isReverse) {
+      // Reverse: start at toPerp (t=1), end at fromPerp (t=0)
+      // carriage.progress 0→1 maps to t 1→0, so use t directly for reverse interp
+      interpPerpX = toPerp.x * t + fromPerp.x * (1 - t);
+      interpPerpY = toPerp.y * t + fromPerp.y * (1 - t);
+    } else {
+      // Forward: start at fromPerp (t=0), end at toPerp (t=1)
+      interpPerpX = fromPerp.x * (1 - t) + toPerp.x * t;
+      interpPerpY = fromPerp.y * (1 - t) + toPerp.y * t;
+    }
+    
+    // Normalize interpolated perpendicular
+    const perpLen = Math.hypot(interpPerpX, interpPerpY);
+    const perpX = perpLen > 0 ? interpPerpX / perpLen : 0;
+    const perpY = perpLen > 0 ? interpPerpY / perpLen : 0;
+    
+    // Offset multiplier based on track side (consistent with straight tracks)
+    const curveOffsetMultiplier = curveTrackSide === 0 ? 1 : -1;
     
     // Apply track offset
-    carX = bezierResult.x + perpX * trackOffset * offsetMultiplier;
-    carY = bezierResult.y + perpY * trackOffset * offsetMultiplier;
+    carX = bezierResult.x + perpX * trackOffset * curveOffsetMultiplier;
+    carY = bezierResult.y + perpY * trackOffset * curveOffsetMultiplier;
     carAngle = bezierResult.angle;
   } else {
     // Straight track or unknown - use linear interpolation

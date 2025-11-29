@@ -151,6 +151,7 @@ import {
   MIN_RAIL_TILES_FOR_TRAINS,
   MAX_TRAINS,
   TRAIN_SPAWN_INTERVAL,
+  TRAINS_PER_RAIL_TILES,
 } from '@/components/game/trainSystem';
 import { Train } from '@/components/game/types';
 
@@ -1064,7 +1065,7 @@ export function CanvasIsometricGrid({ overlayMode, selectedTile, setSelectedTile
     }
 
     // Calculate max trains based on rail network size
-    const maxTrains = Math.min(MAX_TRAINS, Math.ceil(railTileCount / 25));
+    const maxTrains = Math.min(MAX_TRAINS, Math.ceil(railTileCount / TRAINS_PER_RAIL_TILES));
     
     // Speed multiplier based on game speed
     const speedMultiplier = currentSpeed === 1 ? 1 : currentSpeed === 2 ? 2 : 3;
