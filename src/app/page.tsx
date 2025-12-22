@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { GameProvider } from '@/context/GameContext';
+import { GameProvider, useGame } from '@/context/GameContext';
 import Game from '@/components/Game';
+import { LocationSelector } from '@/components/LocationSelector';
 import { useMobile } from '@/hooks/useMobile';
 import { getSpritePack, getSpriteCoords, DEFAULT_SPRITE_PACK_ID } from '@/lib/renderConfig';
 import { SavedCityMeta } from '@/types/game';
@@ -231,17 +232,16 @@ function SavedCityCard({ city, onLoad }: { city: SavedCityMeta; onLoad: () => vo
 
 const SAVED_CITY_PREFIX = 'isocity-city-';
 
-export default function HomePage() {
+function HomePageContent() {
   const [showGame, setShowGame] = useState(false);
-  const [isChecking, setIsChecking] = useState(true);
   const [savedCities, setSavedCities] = useState<SavedCityMeta[]>([]);
   const { isMobileDevice, isSmallScreen } = useMobile();
   const isMobile = isMobileDevice || isSmallScreen;
+  const { newGame, newGameFromEarth } = useGame();
 
   // Check for saved game after mount (client-side only)
   useEffect(() => {
     const checkSavedGame = () => {
-      setIsChecking(false);
       setSavedCities(loadSavedCities());
       if (hasSavedGame()) {
         setShowGame(true);
@@ -270,21 +270,21 @@ export default function HomePage() {
     }
   };
 
-  if (isChecking) {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
-        <div className="text-white/60">Loading...</div>
-      </main>
-    );
-  }
+  const handleStartRandom = () => {
+    newGame('IsoCity');
+    setShowGame(true);
+  };
+
+  const handleSelectEarthLocation = async (lat: number, lng: number) => {
+    await newGameFromEarth(lat, lng, 'IsoCity');
+    setShowGame(true);
+  };
 
   if (showGame) {
     return (
-      <GameProvider>
-        <main className="h-screen w-screen overflow-hidden">
-          <Game onExit={handleExitGame} />
-        </main>
-      </GameProvider>
+      <main className="h-screen w-screen overflow-hidden">
+        <Game onExit={handleExitGame} />
+      </main>
     );
   }
 
@@ -304,12 +304,11 @@ export default function HomePage() {
         
         {/* Buttons */}
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          <Button 
-            onClick={() => setShowGame(true)}
-            className="w-full py-6 text-xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
-          >
-            Start
-          </Button>
+          <LocationSelector
+            onSelectLocation={handleSelectEarthLocation}
+            onStartRandom={handleStartRandom}
+            isMobile={true}
+          />
           
           <Button 
             onClick={async () => {
@@ -356,12 +355,11 @@ export default function HomePage() {
             IsoCity
           </h1>
           <div className="flex flex-col gap-3">
-            <Button 
-              onClick={() => setShowGame(true)}
-              className="w-64 py-8 text-2xl font-light tracking-wide bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-none transition-all duration-300"
-            >
-              Start
-            </Button>
+            <LocationSelector
+              onSelectLocation={handleSelectEarthLocation}
+              onStartRandom={handleStartRandom}
+              isMobile={false}
+            />
             <Button 
               onClick={async () => {
                 const { default: exampleState } = await import('@/resources/example_state_8.json');
@@ -400,5 +398,27 @@ export default function HomePage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function HomePage() {
+  const [isChecking, setIsChecking] = useState(true);
+
+  useEffect(() => {
+    setIsChecking(false);
+  }, []);
+
+  if (isChecking) {
+    return (
+      <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 flex items-center justify-center">
+        <div className="text-white/60">Loading...</div>
+      </main>
+    );
+  }
+
+  return (
+    <GameProvider>
+      <HomePageContent />
+    </GameProvider>
   );
 }
