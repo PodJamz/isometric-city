@@ -34,3 +34,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# documentation PDFs
+CLOUD.pdf
+README.pdf
+
+# Earth terrain data (too large for git, processed tiles stored in Convex)
+public/assets/planets/earth/*.tif
+public/assets/planets/earth/*.zip
