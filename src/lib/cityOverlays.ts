@@ -95,82 +95,87 @@ export function applyCityOverlay(grid: Tile[][], cityId: PresetCityId): void {
   }
 
   if (cityId === 'new_york') {
-    // NYC: Manhattan island + Hudson/East River + NY Harbor
-    // Center: 40.7°N, 74.0°W
-    // Grid is 64x64, centered on this point
+    // NYC: Based on actual geography
+    // Manhattan: ~13.4mi N-S, ~2.3mi E-W, centered at 40.7°N, 74.0°W
+    // Grid is 64x64 tiles (~32km² view)
     
-    // Hudson River (west of Manhattan) - wider at top, narrows south
-    const hudsonTopX = Math.floor(W * 0.35)
-    const hudsonBottomX = Math.floor(W * 0.40)
-    const hudsonStartY = Math.floor(H * 0.10)
-    const hudsonEndY = Math.floor(H * 0.75)
+    // Clear everything first, then build from reference
+    // Manhattan runs roughly N-S (top to bottom in isometric view)
+    const centerX = Math.floor(W / 2)
+    const centerY = Math.floor(H / 2)
     
-    for (let y = hudsonStartY; y < hudsonEndY; y++) {
-      const progress = (y - hudsonStartY) / (hudsonEndY - hudsonStartY)
-      const x0 = Math.floor(hudsonTopX + (hudsonBottomX - hudsonTopX) * progress)
-      const x1 = Math.floor(hudsonTopX + (hudsonBottomX - hudsonTopX) * progress + 3)
-      for (let x = x0; x <= x1; x++) waterAt(x, y)
-    }
-
-    // East River (east of Manhattan) - narrow channel
-    const eastTopX = Math.floor(W * 0.58)
-    const eastBottomX = Math.floor(W * 0.62)
-    const eastStartY = Math.floor(H * 0.15)
-    const eastEndY = Math.floor(H * 0.70)
+    // Manhattan island: long narrow strip, slightly angled
+    // North end around y=8, South end around y=56
+    const manhattanNorthY = 8
+    const manhattanSouthY = 56
+    const manhattanWidth = 6 // ~2.3 miles wide
     
-    for (let y = eastStartY; y < eastEndY; y++) {
-      const progress = (y - eastStartY) / (eastEndY - eastStartY)
-      const x0 = Math.floor(eastTopX + (eastBottomX - eastTopX) * progress)
-      const x1 = Math.floor(eastTopX + (eastBottomX - eastTopX) * progress + 2)
-      for (let x = x0; x <= x1; x++) waterAt(x, y)
-    }
-
-    // NY Harbor / Lower Bay (south of Manhattan)
-    const harborY = Math.floor(H * 0.65)
-    for (let y = harborY; y < H; y++) {
-      for (let x = Math.floor(W * 0.25); x < Math.floor(W * 0.75); x++) {
+    // Hudson River (west side) - wider, ~1-2 miles
+    const hudsonWidth = 8
+    const hudsonCenterX = centerX - Math.floor(manhattanWidth / 2) - Math.floor(hudsonWidth / 2)
+    
+    // East River (east side) - narrower, ~0.5-1 mile
+    const eastWidth = 4
+    const eastCenterX = centerX + Math.floor(manhattanWidth / 2) + Math.floor(eastWidth / 2)
+    
+    // Draw Hudson River (west of Manhattan)
+    for (let y = manhattanNorthY; y < manhattanSouthY + 10; y++) {
+      for (let x = hudsonCenterX - Math.floor(hudsonWidth / 2); x < hudsonCenterX + Math.floor(hudsonWidth / 2); x++) {
         waterAt(x, y)
       }
     }
-
-    // Manhattan island (narrow strip between Hudson and East River)
-    const manhattanStartY = Math.floor(H * 0.12)
-    const manhattanEndY = Math.floor(H * 0.65)
-    for (let y = manhattanStartY; y < manhattanEndY; y++) {
-      const hudsonEdge = Math.floor(hudsonTopX + (hudsonBottomX - hudsonTopX) * ((y - hudsonStartY) / (hudsonEndY - hudsonStartY)) + 4)
-      const eastEdge = Math.floor(eastTopX + (eastBottomX - eastTopX) * ((y - eastStartY) / (eastEndY - eastStartY)) - 1)
-      for (let x = hudsonEdge; x < eastEdge; x++) {
-        if (inBounds(x, y)) {
-          // Only set land if not already water (preserve elevation-based water)
-          if (grid[y][x].building.type !== 'water') {
-            landAt(x, y)
-          }
-        }
+    
+    // Draw East River (east of Manhattan)
+    for (let y = manhattanNorthY + 4; y < manhattanSouthY; y++) {
+      for (let x = eastCenterX - Math.floor(eastWidth / 2); x < eastCenterX + Math.floor(eastWidth / 2); x++) {
+        waterAt(x, y)
       }
     }
-
-    // New Jersey (west of Hudson)
-    for (let y = Math.floor(H * 0.20); y < Math.floor(H * 0.70); y++) {
-      for (let x = 0; x < Math.floor(W * 0.35); x++) {
-        if (grid[y][x].building.type !== 'water') {
-          landAt(x, y)
-        }
+    
+    // Draw Manhattan island (long narrow strip)
+    for (let y = manhattanNorthY; y < manhattanSouthY; y++) {
+      // Manhattan widens slightly in the middle (around 14th St)
+      const midY = (manhattanNorthY + manhattanSouthY) / 2
+      const widthAtY = y < midY 
+        ? manhattanWidth + Math.floor((midY - y) / 8) // Wider in middle
+        : manhattanWidth + Math.floor((y - midY) / 8)
+      
+      const manhattanLeft = centerX - Math.floor(widthAtY / 2)
+      const manhattanRight = centerX + Math.floor(widthAtY / 2)
+      
+      for (let x = manhattanLeft; x < manhattanRight; x++) {
+        landAt(x, y)
       }
     }
-
-    // Brooklyn/Queens/Long Island (east of East River)
-    for (let y = Math.floor(H * 0.20); y < Math.floor(H * 0.70); y++) {
-      for (let x = Math.floor(W * 0.64); x < W; x++) {
-        if (grid[y][x].building.type !== 'water') {
-          landAt(x, y)
-        }
+    
+    // NY Harbor (south of Manhattan, opens to Atlantic)
+    const harborY = manhattanSouthY
+    for (let y = harborY; y < H; y++) {
+      const harborWidth = Math.floor(W * 0.6)
+      const harborLeft = centerX - Math.floor(harborWidth / 2)
+      for (let x = harborLeft; x < harborLeft + harborWidth; x++) {
+        waterAt(x, y)
       }
     }
-
-    // Staten Island (southwest, small blob)
-    const siCx = Math.floor(W * 0.30)
-    const siCy = Math.floor(H * 0.80)
-    const siR = Math.floor(Math.min(W, H) * 0.06)
+    
+    // New Jersey (west of Hudson River)
+    for (let y = manhattanNorthY + 8; y < manhattanSouthY; y++) {
+      for (let x = 0; x < hudsonCenterX - Math.floor(hudsonWidth / 2); x++) {
+        landAt(x, y)
+      }
+    }
+    
+    // Brooklyn/Queens (east of East River, Long Island)
+    for (let y = manhattanNorthY + 8; y < manhattanSouthY; y++) {
+      for (let x = eastCenterX + Math.floor(eastWidth / 2); x < W; x++) {
+        landAt(x, y)
+      }
+    }
+    
+    // Staten Island (southwest, below harbor)
+    const siCx = Math.floor(W * 0.25)
+    const siCy = Math.floor(H * 0.75)
+    const siR = 8
     for (let y = siCy - siR; y <= siCy + siR; y++) {
       for (let x = siCx - siR; x <= siCx + siR; x++) {
         const dx = x - siCx
@@ -178,6 +183,13 @@ export function applyCityOverlay(grid: Tile[][], cityId: PresetCityId): void {
         if (dx * dx + dy * dy <= siR * siR) {
           landAt(x, y)
         }
+      }
+    }
+    
+    // Upper Bay / Hudson continuation (north of Manhattan)
+    for (let y = 0; y < manhattanNorthY; y++) {
+      for (let x = Math.floor(W * 0.3); x < Math.floor(W * 0.7); x++) {
+        waterAt(x, y)
       }
     }
 
