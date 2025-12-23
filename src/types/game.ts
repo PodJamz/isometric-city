@@ -73,7 +73,9 @@ export type BuildingType =
   | 'pond_park'
   | 'park_gate'
   | 'mountain_lodge'
-  | 'mountain_trailhead';
+  | 'mountain_trailhead'
+  // Custom buildings (standalone images)
+  | 'irish_pub';
 
 export type ZoneType = 'none' | 'residential' | 'commercial' | 'industrial';
 
@@ -133,7 +135,9 @@ export type Tool =
   | 'pond_park'
   | 'park_gate'
   | 'mountain_lodge'
-  | 'mountain_trailhead';
+  | 'mountain_trailhead'
+  // Custom buildings (standalone images)
+  | 'irish_pub';
 
 export interface ToolInfo {
   name: string;
@@ -199,6 +203,7 @@ export const TOOL_INFO: Record<Tool, ToolInfo> = {
   park_gate: { name: 'Park Gate', cost: 150, description: 'Decorative park entrance', size: 1 },
   mountain_lodge: { name: 'Mountain Lodge', cost: 1500, description: 'Nature retreat lodge (2x2)', size: 2 },
   mountain_trailhead: { name: 'Trailhead', cost: 400, description: 'Hiking trail entrance (3x3)', size: 3 },
+  irish_pub: { name: 'Irish Pub', cost: 900, description: 'A cozy neighborhood pub (1x1)', size: 1 },
 };
 
 export interface Building {
@@ -441,4 +446,5 @@ export const BUILDING_STATS: Record<BuildingType, { maxPop: number; maxJobs: num
   park_gate: { maxPop: 0, maxJobs: 1, pollution: -2, landValue: 8 },
   mountain_lodge: { maxPop: 0, maxJobs: 15, pollution: -5, landValue: 35 },
   mountain_trailhead: { maxPop: 0, maxJobs: 2, pollution: -10, landValue: 15 },
+  irish_pub: { maxPop: 0, maxJobs: 18, pollution: 2, landValue: 28 },
 };

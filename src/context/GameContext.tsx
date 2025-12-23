@@ -145,6 +145,7 @@ const toolBuildingMap: Partial<Record<Tool, BuildingType>> = {
   park_gate: 'park_gate',
   mountain_lodge: 'mountain_lodge',
   mountain_trailhead: 'mountain_trailhead',
+  irish_pub: 'irish_pub',
 };
 
 const toolZoneMap: Partial<Record<Tool, ZoneType>> = {
